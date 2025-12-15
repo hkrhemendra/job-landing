@@ -4,13 +4,13 @@ import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
 
 // You can keep these values in NEXT_PUBLIC_* env vars if you prefer.
 const firebaseConfig = {
-  apiKey: "AIzaSyDXRk5tTWrRJN3yfRv581hE4xuracQBR90",
-  authDomain: "job-portal-1c0ee.firebaseapp.com",
-  projectId: "job-portal-1c0ee",
-  storageBucket: "job-portal-1c0ee.firebasestorage.app",
-  messagingSenderId: "1079197909828",
-  appId: "1:1079197909828:web:5bf93f18298ca03292cd11",
-  measurementId: "G-57VWFWKJ0P",
+  apiKey: process.env.API_KEY,
+  authDomain: process.env.AUTH_DOMAIN,
+  projectId: process.env.PROJECT_ID,
+  storageBucket: process.env.STORAGE_BUCKET,
+  messagingSenderId: process.env.MESSAGING_SENDER_ID,
+  appId: process.env.APP_ID,
+  measurementId: process.env.MEASUREMENT_ID,
 };
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
