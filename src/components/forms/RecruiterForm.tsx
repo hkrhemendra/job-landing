@@ -12,6 +12,36 @@ import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { RecruiterFormProps, HiringRole } from "@/types";
 import { Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+// Validation functions
+const validateName = (name: string): string | null => {
+  const trimmed = name.trim();
+  if (!trimmed) return "Name is required";
+  if (trimmed.length < 2) return "Name must be at least 2 characters";
+  if (!/^[a-zA-Z\s'-]+$/.test(trimmed)) return "Name can only contain letters, spaces, hyphens, and apostrophes";
+  return null;
+};
+
+const validateCompanyName = (companyName: string): string | null => {
+  const trimmed = companyName.trim();
+  if (!trimmed) return "Company name is required";
+  if (trimmed.length < 2) return "Company name must be at least 2 characters";
+  // Allow letters, numbers, spaces, and common business characters
+  if (!/^[a-zA-Z0-9\s\-.,&'()]+$/.test(trimmed)) return "Please enter a valid company name";
+  return null;
+};
+
+const validatePhone = (phone: string): string | null => {
+  const trimmed = phone.trim();
+  if (!trimmed) return "Phone number is required";
+  // Remove spaces, dashes, and parentheses for validation
+  const cleaned = trimmed.replace(/[\s\-\(\)]/g, "");
+  // Indian phone format: +91 followed by 10 digits, or just 10 digits
+  if (/^\+91\d{10}$/.test(cleaned)) return null;
+  if (/^\d{10}$/.test(cleaned)) return null;
+  return "Please enter a valid 10-digit phone number (e.g., +91 9876543210 or 9876543210)";
+};
 
 export function RecruiterForm({ onSuccess }: RecruiterFormProps) {
   const router = useRouter();
@@ -23,25 +53,88 @@ export function RecruiterForm({ onSuccess }: RecruiterFormProps) {
   const [willingToPay, setWillingToPay] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Field-level validation errors
+  const [fieldErrors, setFieldErrors] = useState<{
+    companyName?: string;
+    recruiterName?: string;
+    phone?: string;
+    hiringRoles?: string;
+    monthlyVolume?: string;
+    willingToPay?: string;
+  }>({});
 
   const toggleRole = (role: string) => {
-    setHiringRoles((prev) =>
-      prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]
-    );
+    setHiringRoles((prev) => {
+      const updated = prev.includes(role) 
+        ? prev.filter((r) => r !== role) 
+        : [...prev, role];
+      // Clear error when user selects a role
+      if (updated.length > 0 && fieldErrors.hiringRoles) {
+        setFieldErrors((prev) => ({ ...prev, hiringRoles: undefined }));
+      }
+      return updated;
+    });
+  };
+
+  // Validate individual fields on blur
+  const handleBlur = (field: string, value: string) => {
+    let error: string | null = null;
+    
+    switch (field) {
+      case "companyName":
+        error = validateCompanyName(value);
+        break;
+      case "recruiterName":
+        error = validateName(value);
+        break;
+      case "phone":
+        error = validatePhone(value);
+        break;
+      case "monthlyVolume":
+        error = !value ? "Please select monthly hiring volume" : null;
+        break;
+      case "willingToPay":
+        error = !value ? "Please select an option" : null;
+        break;
+    }
+    
+    setFieldErrors((prev) => ({
+      ...prev,
+      [field]: error || undefined,
+    }));
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (
-      !companyName ||
-      !recruiterName ||
-      !phone ||
-      hiringRoles.length === 0 ||
-      !monthlyVolume ||
-      !willingToPay
-    ) {
-      setError("Please fill all required fields and select at least one role.");
+    // Trim all inputs
+    const trimmedCompanyName = companyName.trim();
+    const trimmedRecruiterName = recruiterName.trim();
+    const trimmedPhone = phone.trim();
+
+    // Validate all fields
+    const companyNameError = validateCompanyName(trimmedCompanyName);
+    const recruiterNameError = validateName(trimmedRecruiterName);
+    const phoneError = validatePhone(trimmedPhone);
+    const hiringRolesError = hiringRoles.length === 0 ? "Please select at least one hiring role" : null;
+    const monthlyVolumeError = !monthlyVolume ? "Please select monthly hiring volume" : null;
+    const willingToPayError = !willingToPay ? "Please select an option" : null;
+
+    const errors = {
+      companyName: companyNameError || undefined,
+      recruiterName: recruiterNameError || undefined,
+      phone: phoneError || undefined,
+      hiringRoles: hiringRolesError || undefined,
+      monthlyVolume: monthlyVolumeError || undefined,
+      willingToPay: willingToPayError || undefined,
+    };
+
+    setFieldErrors(errors);
+
+    // Check if there are any errors
+    if (companyNameError || recruiterNameError || phoneError || hiringRolesError || monthlyVolumeError || willingToPayError) {
+      setError("Please fix the errors below before submitting.");
       return;
     }
 
@@ -49,9 +142,9 @@ export function RecruiterForm({ onSuccess }: RecruiterFormProps) {
     setSubmitting(true);
     const payload = {
       type: "recruiter",
-      companyName,
-      recruiterName,
-      phone,
+      companyName: trimmedCompanyName,
+      recruiterName: trimmedRecruiterName,
+      phone: trimmedPhone,
       hiringRoles,
       monthlyVolume,
       willingToPay,
@@ -106,9 +199,20 @@ export function RecruiterForm({ onSuccess }: RecruiterFormProps) {
             name="companyName"
             required
             value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
+            onChange={(e) => {
+              setCompanyName(e.target.value);
+              // Clear error when user starts typing
+              if (fieldErrors.companyName) {
+                setFieldErrors((prev) => ({ ...prev, companyName: undefined }));
+              }
+            }}
+            onBlur={(e) => handleBlur("companyName", e.target.value)}
             placeholder="ABC BPO Pvt. Ltd."
+            className={cn(fieldErrors.companyName && "border-red-500 focus-visible:ring-red-500")}
           />
+          {fieldErrors.companyName && (
+            <p className="mt-1 text-xs text-red-600">{fieldErrors.companyName}</p>
+          )}
         </div>
         <div>
           <Label htmlFor="rec-name">Recruiter Name</Label>
@@ -117,9 +221,20 @@ export function RecruiterForm({ onSuccess }: RecruiterFormProps) {
             name="recruiterName"
             required
             value={recruiterName}
-            onChange={(e) => setRecruiterName(e.target.value)}
+            onChange={(e) => {
+              setRecruiterName(e.target.value);
+              // Clear error when user starts typing
+              if (fieldErrors.recruiterName) {
+                setFieldErrors((prev) => ({ ...prev, recruiterName: undefined }));
+              }
+            }}
+            onBlur={(e) => handleBlur("recruiterName", e.target.value)}
             placeholder="Hiring Manager / Recruiter"
+            className={cn(fieldErrors.recruiterName && "border-red-500 focus-visible:ring-red-500")}
           />
+          {fieldErrors.recruiterName && (
+            <p className="mt-1 text-xs text-red-600">{fieldErrors.recruiterName}</p>
+          )}
         </div>
         <div>
           <Label htmlFor="rec-phone">Phone Number</Label>
@@ -129,9 +244,20 @@ export function RecruiterForm({ onSuccess }: RecruiterFormProps) {
             type="tel"
             required
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="+91 ..."
+            onChange={(e) => {
+              setPhone(e.target.value);
+              // Clear error when user starts typing
+              if (fieldErrors.phone) {
+                setFieldErrors((prev) => ({ ...prev, phone: undefined }));
+              }
+            }}
+            onBlur={(e) => handleBlur("phone", e.target.value)}
+            placeholder="+91 9876543210 or 9876543210"
+            className={cn(fieldErrors.phone && "border-red-500 focus-visible:ring-red-500")}
           />
+          {fieldErrors.phone && (
+            <p className="mt-1 text-xs text-red-600">{fieldErrors.phone}</p>
+          )}
         </div>
         <div>
           <Label>Hiring Roles (select all that apply)</Label>
@@ -143,11 +269,13 @@ export function RecruiterForm({ onSuccess }: RecruiterFormProps) {
                   key={role}
                   type="button"
                   onClick={() => toggleRole(role)}
-                  className={`inline-flex items-center justify-center rounded-full border px-3 py-1 text-xs transition-colors ${
+                  className={cn(
+                    "inline-flex items-center justify-center rounded-full border px-3 py-1 text-xs transition-colors",
                     selected
                       ? "border-blue-500 bg-blue-50 text-blue-700"
-                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                  }`}
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                    fieldErrors.hiringRoles && !selected && "border-red-300"
+                  )}
                   aria-pressed={selected}
                 >
                   {role}
@@ -155,6 +283,9 @@ export function RecruiterForm({ onSuccess }: RecruiterFormProps) {
               );
             })}
           </div>
+          {fieldErrors.hiringRoles && (
+            <p className="mt-1 text-xs text-red-600">{fieldErrors.hiringRoles}</p>
+          )}
         </div>
         <div>
           <Label htmlFor="rec-volume">Monthly Hiring Volume</Label>
@@ -163,7 +294,15 @@ export function RecruiterForm({ onSuccess }: RecruiterFormProps) {
             name="monthlyHiringVolume"
             required
             value={monthlyVolume}
-            onChange={(e) => setMonthlyVolume(e.target.value)}
+            onChange={(e) => {
+              setMonthlyVolume(e.target.value);
+              // Clear error when user selects
+              if (fieldErrors.monthlyVolume) {
+                setFieldErrors((prev) => ({ ...prev, monthlyVolume: undefined }));
+              }
+            }}
+            onBlur={(e) => handleBlur("monthlyVolume", e.target.value)}
+            className={cn(fieldErrors.monthlyVolume && "border-red-500 focus-visible:ring-red-500")}
           >
             <option value="" disabled>
               Select volume
@@ -173,6 +312,9 @@ export function RecruiterForm({ onSuccess }: RecruiterFormProps) {
             <option value="31-75">31 - 75 hires / month</option>
             <option value="76+">76+ hires / month</option>
           </Select>
+          {fieldErrors.monthlyVolume && (
+            <p className="mt-1 text-xs text-red-600">{fieldErrors.monthlyVolume}</p>
+          )}
         </div>
         <div>
           <Label>Would you pay for quality candidates?</Label>
@@ -184,12 +326,20 @@ export function RecruiterForm({ onSuccess }: RecruiterFormProps) {
                 <button
                   key={value}
                   type="button"
-                  onClick={() => setWillingToPay(value)}
-                  className={`inline-flex flex-1 items-center justify-center rounded-full border px-3 py-1 text-xs transition-colors ${
+                  onClick={() => {
+                    setWillingToPay(value);
+                    // Clear error when user selects
+                    if (fieldErrors.willingToPay) {
+                      setFieldErrors((prev) => ({ ...prev, willingToPay: undefined }));
+                    }
+                  }}
+                  className={cn(
+                    "inline-flex flex-1 items-center justify-center rounded-full border px-3 py-1 text-xs transition-colors",
                     selected
                       ? "border-blue-500 bg-blue-50 text-blue-700"
-                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                  }`}
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
+                    fieldErrors.willingToPay && !selected && "border-red-300"
+                  )}
                   aria-pressed={selected}
                 >
                   {option}
@@ -197,9 +347,12 @@ export function RecruiterForm({ onSuccess }: RecruiterFormProps) {
               );
             })}
           </div>
+          {fieldErrors.willingToPay && (
+            <p className="mt-1 text-xs text-red-600">{fieldErrors.willingToPay}</p>
+          )}
         </div>
         {error && (
-          <p className="text-xs text-red-600">{error}</p>
+          <p className="text-xs text-red-600 font-medium">{error}</p>
         )}
         <Button
           type="submit"

@@ -12,6 +12,35 @@ import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { JobSeekerFormProps } from "@/types";
 import { Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+// Validation functions
+const validateName = (name: string): string | null => {
+  const trimmed = name.trim();
+  if (!trimmed) return "Name is required";
+  if (trimmed.length < 2) return "Name must be at least 2 characters";
+  if (!/^[a-zA-Z\s'-]+$/.test(trimmed)) return "Name can only contain letters, spaces, hyphens, and apostrophes";
+  return null;
+};
+
+const validatePhone = (phone: string): string | null => {
+  const trimmed = phone.trim();
+  if (!trimmed) return "Phone number is required";
+  // Remove spaces, dashes, and parentheses for validation
+  const cleaned = trimmed.replace(/[\s\-\(\)]/g, "");
+  // Indian phone format: +91 followed by 10 digits, or just 10 digits
+  if (/^\+91\d{10}$/.test(cleaned)) return null;
+  if (/^\d{10}$/.test(cleaned)) return null;
+  return "Please enter a valid 10-digit phone number (e.g., +91 9876543210 or 9876543210)";
+};
+
+const validateCity = (city: string): string | null => {
+  const trimmed = city.trim();
+  if (!trimmed) return "City is required";
+  if (trimmed.length < 2) return "City must be at least 2 characters";
+  if (!/^[a-zA-Z\s'-]+$/.test(trimmed)) return "City can only contain letters, spaces, hyphens, and apostrophes";
+  return null;
+};
 
 export function JobSeekerForm({ onSuccess }: JobSeekerFormProps) {
   const router = useRouter();
@@ -22,12 +51,72 @@ export function JobSeekerForm({ onSuccess }: JobSeekerFormProps) {
   const [shift, setShift] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Field-level validation errors
+  const [fieldErrors, setFieldErrors] = useState<{
+    name?: string;
+    phone?: string;
+    city?: string;
+    jobType?: string;
+    shift?: string;
+  }>({});
+
+  // Validate individual fields on blur
+  const handleBlur = (field: string, value: string) => {
+    let error: string | null = null;
+    
+    switch (field) {
+      case "name":
+        error = validateName(value);
+        break;
+      case "phone":
+        error = validatePhone(value);
+        break;
+      case "city":
+        error = validateCity(value);
+        break;
+      case "jobType":
+        error = !value ? "Please select a job type" : null;
+        break;
+      case "shift":
+        error = !value ? "Please select a shift preference" : null;
+        break;
+    }
+    
+    setFieldErrors((prev) => ({
+      ...prev,
+      [field]: error || undefined,
+    }));
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!name || !phone || !city || !jobType || !shift) {
-      setError("Please fill all required fields.");
+    // Trim all inputs
+    const trimmedName = name.trim();
+    const trimmedPhone = phone.trim();
+    const trimmedCity = city.trim();
+
+    // Validate all fields
+    const nameError = validateName(trimmedName);
+    const phoneError = validatePhone(trimmedPhone);
+    const cityError = validateCity(trimmedCity);
+    const jobTypeError = !jobType ? "Please select a job type" : null;
+    const shiftError = !shift ? "Please select a shift preference" : null;
+
+    const errors = {
+      name: nameError || undefined,
+      phone: phoneError || undefined,
+      city: cityError || undefined,
+      jobType: jobTypeError || undefined,
+      shift: shiftError || undefined,
+    };
+
+    setFieldErrors(errors);
+
+    // Check if there are any errors
+    if (nameError || phoneError || cityError || jobTypeError || shiftError) {
+      setError("Please fix the errors below before submitting.");
       return;
     }
 
@@ -35,9 +124,9 @@ export function JobSeekerForm({ onSuccess }: JobSeekerFormProps) {
     setSubmitting(true);
     const payload = {
       type: "job-seeker",
-      name,
-      phone,
-      city,
+      name: trimmedName,
+      phone: trimmedPhone,
+      city: trimmedCity,
       jobType,
       shift,
       createdAt: serverTimestamp(),
@@ -82,9 +171,20 @@ export function JobSeekerForm({ onSuccess }: JobSeekerFormProps) {
             name="fullName"
             required
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+              // Clear error when user starts typing
+              if (fieldErrors.name) {
+                setFieldErrors((prev) => ({ ...prev, name: undefined }));
+              }
+            }}
+            onBlur={(e) => handleBlur("name", e.target.value)}
             placeholder="Priya Sharma"
+            className={cn(fieldErrors.name && "border-red-500 focus-visible:ring-red-500")}
           />
+          {fieldErrors.name && (
+            <p className="mt-1 text-xs text-red-600">{fieldErrors.name}</p>
+          )}
         </div>
         <div>
           <Label htmlFor="js-phone">Phone Number</Label>
@@ -94,9 +194,20 @@ export function JobSeekerForm({ onSuccess }: JobSeekerFormProps) {
             type="tel"
             required
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="+91 ..."
+            onChange={(e) => {
+              setPhone(e.target.value);
+              // Clear error when user starts typing
+              if (fieldErrors.phone) {
+                setFieldErrors((prev) => ({ ...prev, phone: undefined }));
+              }
+            }}
+            onBlur={(e) => handleBlur("phone", e.target.value)}
+            placeholder="+91 9876543210 or 9876543210"
+            className={cn(fieldErrors.phone && "border-red-500 focus-visible:ring-red-500")}
           />
+          {fieldErrors.phone && (
+            <p className="mt-1 text-xs text-red-600">{fieldErrors.phone}</p>
+          )}
         </div>
         <div>
           <Label htmlFor="js-city">City</Label>
@@ -105,9 +216,20 @@ export function JobSeekerForm({ onSuccess }: JobSeekerFormProps) {
             name="city"
             required
             value={city}
-            onChange={(e) => setCity(e.target.value)}
+            onChange={(e) => {
+              setCity(e.target.value);
+              // Clear error when user starts typing
+              if (fieldErrors.city) {
+                setFieldErrors((prev) => ({ ...prev, city: undefined }));
+              }
+            }}
+            onBlur={(e) => handleBlur("city", e.target.value)}
             placeholder="Bengaluru, Pune, Gurgaon..."
+            className={cn(fieldErrors.city && "border-red-500 focus-visible:ring-red-500")}
           />
+          {fieldErrors.city && (
+            <p className="mt-1 text-xs text-red-600">{fieldErrors.city}</p>
+          )}
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -117,7 +239,15 @@ export function JobSeekerForm({ onSuccess }: JobSeekerFormProps) {
               name="jobType"
               required
               value={jobType}
-              onChange={(e) => setJobType(e.target.value)}
+              onChange={(e) => {
+                setJobType(e.target.value);
+                // Clear error when user selects
+                if (fieldErrors.jobType) {
+                  setFieldErrors((prev) => ({ ...prev, jobType: undefined }));
+                }
+              }}
+              onBlur={(e) => handleBlur("jobType", e.target.value)}
+              className={cn(fieldErrors.jobType && "border-red-500 focus-visible:ring-red-500")}
             >
               <option value="" disabled>
                 Select job type
@@ -127,6 +257,9 @@ export function JobSeekerForm({ onSuccess }: JobSeekerFormProps) {
               <option value="chat">Chat Support</option>
               <option value="email">Email Support</option>
             </Select>
+            {fieldErrors.jobType && (
+              <p className="mt-1 text-xs text-red-600">{fieldErrors.jobType}</p>
+            )}
           </div>
           <div>
             <Label htmlFor="js-shift">Shift Preference</Label>
@@ -135,7 +268,15 @@ export function JobSeekerForm({ onSuccess }: JobSeekerFormProps) {
               name="shiftPreference"
               required
               value={shift}
-              onChange={(e) => setShift(e.target.value)}
+              onChange={(e) => {
+                setShift(e.target.value);
+                // Clear error when user selects
+                if (fieldErrors.shift) {
+                  setFieldErrors((prev) => ({ ...prev, shift: undefined }));
+                }
+              }}
+              onBlur={(e) => handleBlur("shift", e.target.value)}
+              className={cn(fieldErrors.shift && "border-red-500 focus-visible:ring-red-500")}
             >
               <option value="" disabled>
                 Select shift
@@ -144,10 +285,13 @@ export function JobSeekerForm({ onSuccess }: JobSeekerFormProps) {
               <option value="night">Night</option>
               <option value="rotational">Rotational</option>
             </Select>
+            {fieldErrors.shift && (
+              <p className="mt-1 text-xs text-red-600">{fieldErrors.shift}</p>
+            )}
           </div>
         </div>
         {error && (
-          <p className="text-xs text-red-600">{error}</p>
+          <p className="text-xs text-red-600 font-medium">{error}</p>
         )}
         <Button
           type="submit"

@@ -91,8 +91,8 @@ function SuccessContent() {
                   <p className="text-sm text-slate-700 leading-relaxed">
                     {isJobSeeker && (
                       <>
-                        We're currently in the validation phase. Once we have
-                        enough interest in your city, we'll start onboarding
+                        We&apos;re currently in the validation phase. Once we have
+                        enough interest in your city, we&apos;ll start onboarding
                         verified recruiters and notify you about relevant job
                         openings.
                       </>
@@ -101,13 +101,13 @@ function SuccessContent() {
                       <>
                         Our team will review your requirements and reach out to
                         discuss how we can help you find quality candidates for
-                        your support roles. We're building a platform
+                        your support roles. We&apos;re building a platform
                         specifically for BPO, KPO, and call center hiring.
                       </>
                     )}
                     {!isJobSeeker && !isRecruiter && (
                       <>
-                        We'll review your submission and get back to you soon
+                        We&apos;ll review your submission and get back to you soon
                         with next steps.
                       </>
                     )}
@@ -162,10 +162,10 @@ function SuccessContent() {
             >
               Questions? Reach us at{" "}
               <a
-                href="mailto:hello@supportjobs.in"
+                href="mailto:hemendralalawat30@gmail.com"
                 className="text-blue-600 hover:text-blue-700 underline"
               >
-                hello@supportjobs.in
+                hemendralalawat30@gmail.com
               </a>
             </motion.p>
           </div>
